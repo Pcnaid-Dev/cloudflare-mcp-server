@@ -1,0 +1,77 @@
+# .github/workflows/deploy-workers.yml
+name: Deploy Cloudflare Workers
+
+on:
+  push:
+    branches: [ main ] # Or your default branch
+  workflow_dispatch:
+
+jobs:
+  deploy_all_workers:
+    runs-on: ubuntu-latest
+    env:
+      # Ensure CLOUDFLARE_API_TOKEN is set in GitHub repository secrets
+      # CLOUDFLARE_ACCOUNT_ID might also be needed by wrangler, or can be in wrangler.toml
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18' # Or your preferred Node.js version for Wrangler
+
+    - name: Install Wrangler
+      run: npm install -g wrangler
+
+    # This assumes each app in apps/* has its own wrangler.toml
+    # or the root wrangler.toml defines workspaces.
+    # If wrangler.toml is only at the root and manages all apps as workspaces,
+    # you might just run 'wrangler deploy <worker-name>' for each.
+
+    - name: Deploy autorag
+      # Assumes autorag has its own wrangler.toml or is a workspace
+      run: |
+        cd apps/autorag 
+        # wrangler secret put MY_SECRET_FOR_AUTORAG --env production # Secrets should be pre-configured or managed carefully
+        wrangler deploy
+      env:
+        # Specific secrets for this worker can be passed if needed,
+        # but ideally, they are set via `wrangler secret put` manually once
+        # or through a more secure secret management for CI.
+        # CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_FOR_AUTORAG_PERMISSIONS }} # If different tokens needed
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+
+    - name: Deploy docs-vectorize
+      run: |
+        cd apps/docs-vectorize
+        wrangler deploy
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+    # ... Add a similar 'Deploy <app-name>' step for EACH worker app directory ...
+    # Example for docs-autorag:
+    # - name: Deploy docs-autorag
+    #   run: |
+    #     cd apps/docs-autorag
+    #     wrangler deploy
+    #   env:
+    #     CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+    # And so on for:
+    # - docs-autorag
+    # - workers-bindings
+    # - workers-builds
+    # - workers-observability
+
+    # If using workspaces defined in a root wrangler.toml, it might look like:
+    # - name: Deploy All Workers (Workspace aware)
+    #   run: |
+    #     wrangler deploy --workspace autorag
+    #     wrangler deploy --workspace docs-vectorize
+    #     # etc. for all defined workspaces/workers
+    #   env:
+    #     CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
